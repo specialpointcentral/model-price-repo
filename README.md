@@ -9,8 +9,37 @@ A GitHub Actions workflow runs every 10 minutes (and on manual trigger):
 1. Downloads the full `model_prices_and_context_window.json` from litellm
 2. Filters models by the prefix rules in `config.json`
 3. Merges new models into the existing output (additive — never removes)
-4. Applies alias mappings and custom model definitions
-5. Writes the output JSON + SHA-256 hash, commits only if content changed
+4. Auto-fills configured cache prices and applies custom model definitions
+5. Replaces complete entries listed in `price_overrides.json`
+6. Builds aliases from the final custom or managed source entries
+7. Writes the output JSON + SHA-256 hash, committing only if content changed
+
+The transformation order is deliberately fixed:
+
+```text
+fetch/filter/merge -> cache auto-fill -> custom models -> managed whole-entry replacement -> aliases -> JSON/SHA-256
+```
+
+## Site-managed price cards
+
+Most entries continue to follow litellm automatically. Models listed in
+[`price_overrides.json`](price_overrides.json) are different: the complete model
+entry is maintained by this repository and replaces the synchronized entry
+wholesale. This prevents upstream tier fields from being mixed with locally
+approved prices.
+
+The initial managed set is:
+
+- `gpt-5.6-luna`
+- `gpt-5.6-terra`
+
+Aliases are generated after managed replacements. In particular,
+`codex-auto-review` always copies the final managed `gpt-5.6-luna` entry.
+
+When adding or updating a managed model, review the entire entry, including
+standard, priority, flex, batch, cache, long-context, endpoint, capability, and
+token-limit fields. A managed key must not also exist in
+`config.json.custom_models`.
 
 ## Configuration
 
@@ -62,10 +91,23 @@ If the source model doesn't exist in the filtered data, the alias is skipped wit
 ## Running locally
 
 ```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+To rebuild from a fresh upstream snapshot:
+
+```bash
+bash rebuild.sh
+```
+
+Then prove that the generated catalog and hash are stable:
+
+```bash
 python3 scripts/sync_prices.py --config config.json --repo-root .
 ```
 
-No pip dependencies — uses Python standard library only.
+The final command must print `CHANGED=false`. No pip dependencies are required;
+the script and tests use only the Python standard library.
 
 ## CRS integration
 

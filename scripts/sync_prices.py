@@ -12,6 +12,7 @@ from decimal import Decimal
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 import urllib.error
@@ -213,6 +214,58 @@ def apply_custom_models(data: dict, custom: dict) -> dict:
     return data
 
 
+BASE_TOKEN_PRICE_FIELDS = (
+    "input_cost_per_token",
+    "output_cost_per_token",
+    "cache_read_input_token_cost",
+    "cache_creation_input_token_cost",
+)
+
+
+def _is_valid_base_token_price(value) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
+    )
+
+
+def load_price_overrides(path: str) -> dict:
+    """Load and validate the required site-managed model entries."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Price override file not found: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        overrides = json.load(f)
+    if not isinstance(overrides, dict):
+        raise ValueError("Price overrides root must be a JSON object")
+
+    validated = {}
+    for model, entry in overrides.items():
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError("Price override model names must be non-empty strings")
+        if not isinstance(entry, dict):
+            raise ValueError(f"Price override for {model!r} must be a JSON object")
+        if not any(
+            _is_valid_base_token_price(entry.get(field))
+            for field in BASE_TOKEN_PRICE_FIELDS
+        ):
+            raise ValueError(
+                f"Price override for {model!r} has no valid base token price"
+            )
+        validated[model.strip()] = entry
+    return validated
+
+
+def apply_price_overrides(data: dict, overrides: dict) -> dict:
+    """Return a catalog with managed entries replaced wholesale."""
+    merged = dict(data)
+    for model, entry in overrides.items():
+        merged[model] = copy.deepcopy(entry)
+        log.info("Price override '%s' pinned.", model)
+    return merged
+
+
 def fill_cache_1hr_pricing(data: dict, config: dict) -> int:
     """Auto-fill missing cache_creation_input_token_cost_above_1hr for matching models.
 
@@ -323,23 +376,29 @@ def main() -> None:
         stats["unchanged"],
     )
 
-    # 6. Aliases
-    aliases = config.get("aliases", {})
-    if aliases:
-        merged = apply_aliases(merged, aliases)
-
-    # 7. Auto-fill cache 1hr pricing
+    # 6. Auto-fill cache 1hr pricing
     cache_1hr_count = fill_cache_1hr_pricing(merged, config)
 
-    # 8. Custom models
+    # 7. Custom models
     custom = config.get("custom_models", {})
     if custom:
         merged = apply_custom_models(merged, custom)
 
-    # 9. Write output
+    # 8. Site-managed entries
+    overrides = load_price_overrides(
+        os.path.join(repo_root, "price_overrides.json")
+    )
+    merged = apply_price_overrides(merged, overrides)
+
+    # 9. Aliases must copy the final source entries
+    aliases = config.get("aliases", {})
+    if aliases:
+        merged = apply_aliases(merged, aliases)
+
+    # 10. Write output
     changed, new_hash = write_output(merged, output_path, hash_path, old_hash)
 
-    # 10. Report
+    # 11. Report
     log.info("--- Sync Report ---")
     log.info("Total models in output: %d", len(merged))
     log.info("Added:     %d", stats["added"])
@@ -348,6 +407,7 @@ def main() -> None:
     log.info("Aliases:   %d", len(aliases))
     log.info("Cache 1hr auto-filled: %d", cache_1hr_count)
     log.info("Custom:    %d", len(custom))
+    log.info("Overrides: %d", len(overrides))
 
     # Machine-readable output for CI
     print(f"CHANGED={str(changed).lower()}")
