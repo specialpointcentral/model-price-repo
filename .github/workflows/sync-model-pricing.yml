@@ -25,6 +25,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test pricing synchronization
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
       - name: Run sync script
         id: sync
         run: |
