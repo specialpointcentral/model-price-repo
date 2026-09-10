@@ -172,6 +172,34 @@ class PriceOverridesTest(unittest.TestCase):
                 "cache_read_input_token_cost_flex": 1.25e-7,
                 "cache_read_input_token_cost_priority": 5e-7,
             },
+            "gpt-6-astra": {
+                "input_cost_per_token": 1e-5,
+                "input_cost_per_token_batches": 5e-6,
+                "input_cost_per_token_flex": 5e-6,
+                "input_cost_per_token_priority": 2e-5,
+                "input_cost_per_token_above_272k_tokens": 2e-5,
+                "input_cost_per_token_above_272k_tokens_flex": 1e-5,
+                "input_cost_per_token_above_272k_tokens_priority": 4e-5,
+                "output_cost_per_token": 5e-5,
+                "output_cost_per_token_batches": 2.5e-5,
+                "output_cost_per_token_flex": 2.5e-5,
+                "output_cost_per_token_priority": 1e-4,
+                "output_cost_per_token_above_272k_tokens": 7.5e-5,
+                "output_cost_per_token_above_272k_tokens_flex": 3.75e-5,
+                "output_cost_per_token_above_272k_tokens_priority": 1.5e-4,
+                "cache_creation_input_token_cost": 1.25e-5,
+                "cache_creation_input_token_cost_flex": 6.25e-6,
+                "cache_creation_input_token_cost_priority": 2.5e-5,
+                "cache_creation_input_token_cost_above_272k_tokens": 2.5e-5,
+                "cache_creation_input_token_cost_above_272k_tokens_flex": 1.25e-5,
+                "cache_creation_input_token_cost_above_272k_tokens_priority": 5e-5,
+                "cache_read_input_token_cost": 2e-6,
+                "cache_read_input_token_cost_flex": 1e-6,
+                "cache_read_input_token_cost_priority": 4e-6,
+                "cache_read_input_token_cost_above_272k_tokens": 4e-6,
+                "cache_read_input_token_cost_above_272k_tokens_flex": 2e-6,
+                "cache_read_input_token_cost_above_272k_tokens_priority": 8e-6,
+            },
         }
         self.assertEqual(set(expected), set(overrides))
         self.assertTrue(
@@ -181,6 +209,8 @@ class PriceOverridesTest(unittest.TestCase):
             self.assertEqual(overrides[model], catalog[model])
             for field, value in prices.items():
                 self.assertEqual(value, catalog[model][field])
+
+        for model in ("gpt-5.6-luna", "gpt-5.6-terra"):
             self.assertEqual(
                 272000,
                 catalog[model]["long_context_input_token_threshold"],
