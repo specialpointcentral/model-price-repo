@@ -172,6 +172,74 @@ class PriceOverridesTest(unittest.TestCase):
                 "cache_read_input_token_cost_flex": 1.25e-7,
                 "cache_read_input_token_cost_priority": 5e-7,
             },
+            "gpt-6-sol": {
+                "input_cost_per_token": 3.5e-6,
+                "input_cost_per_token_batches": 1.75e-6,
+                "input_cost_per_token_flex": 1.75e-6,
+                "input_cost_per_token_priority": 7e-6,
+                "input_cost_per_token_above_272k_tokens": 7e-6,
+                "input_cost_per_token_above_272k_tokens_batches": 3.5e-6,
+                "input_cost_per_token_above_272k_tokens_flex": 3.5e-6,
+                "input_cost_per_token_above_272k_tokens_priority": 1.4e-5,
+                "output_cost_per_token": 2e-5,
+                "output_cost_per_token_batches": 1e-5,
+                "output_cost_per_token_flex": 1e-5,
+                "output_cost_per_token_priority": 4e-5,
+                "output_cost_per_token_above_272k_tokens": 3e-5,
+                "output_cost_per_token_above_272k_tokens_batches": 1.5e-5,
+                "output_cost_per_token_above_272k_tokens_flex": 1.5e-5,
+                "output_cost_per_token_above_272k_tokens_priority": 6e-5,
+                "cache_creation_input_token_cost": 4.2e-6,
+                "cache_creation_input_token_cost_batches": 2.1e-6,
+                "cache_creation_input_token_cost_flex": 2.1e-6,
+                "cache_creation_input_token_cost_priority": 8.4e-6,
+                "cache_creation_input_token_cost_above_272k_tokens": 8.4e-6,
+                "cache_creation_input_token_cost_above_272k_tokens_batches": 4.2e-6,
+                "cache_creation_input_token_cost_above_272k_tokens_flex": 4.2e-6,
+                "cache_creation_input_token_cost_above_272k_tokens_priority": 1.68e-5,
+                "cache_read_input_token_cost": 3.5e-7,
+                "cache_read_input_token_cost_batches": 1.75e-7,
+                "cache_read_input_token_cost_flex": 1.75e-7,
+                "cache_read_input_token_cost_priority": 7e-7,
+                "cache_read_input_token_cost_above_272k_tokens": 7e-7,
+                "cache_read_input_token_cost_above_272k_tokens_batches": 3.5e-7,
+                "cache_read_input_token_cost_above_272k_tokens_flex": 3.5e-7,
+                "cache_read_input_token_cost_above_272k_tokens_priority": 1.4e-6,
+            },
+            "gpt-6-luna": {
+                "input_cost_per_token": 1.5e-7,
+                "input_cost_per_token_batches": 7.5e-8,
+                "input_cost_per_token_flex": 7.5e-8,
+                "input_cost_per_token_priority": 3e-7,
+                "input_cost_per_token_above_272k_tokens": 3e-7,
+                "input_cost_per_token_above_272k_tokens_batches": 1.5e-7,
+                "input_cost_per_token_above_272k_tokens_flex": 1.5e-7,
+                "input_cost_per_token_above_272k_tokens_priority": 6e-7,
+                "output_cost_per_token": 1e-6,
+                "output_cost_per_token_batches": 5e-7,
+                "output_cost_per_token_flex": 5e-7,
+                "output_cost_per_token_priority": 2e-6,
+                "output_cost_per_token_above_272k_tokens": 1.5e-6,
+                "output_cost_per_token_above_272k_tokens_batches": 7.5e-7,
+                "output_cost_per_token_above_272k_tokens_flex": 7.5e-7,
+                "output_cost_per_token_above_272k_tokens_priority": 3e-6,
+                "cache_creation_input_token_cost": 2e-7,
+                "cache_creation_input_token_cost_batches": 1e-7,
+                "cache_creation_input_token_cost_flex": 1e-7,
+                "cache_creation_input_token_cost_priority": 4e-7,
+                "cache_creation_input_token_cost_above_272k_tokens": 4e-7,
+                "cache_creation_input_token_cost_above_272k_tokens_batches": 2e-7,
+                "cache_creation_input_token_cost_above_272k_tokens_flex": 2e-7,
+                "cache_creation_input_token_cost_above_272k_tokens_priority": 8e-7,
+                "cache_read_input_token_cost": 1.5e-8,
+                "cache_read_input_token_cost_batches": 7.5e-9,
+                "cache_read_input_token_cost_flex": 7.5e-9,
+                "cache_read_input_token_cost_priority": 3e-8,
+                "cache_read_input_token_cost_above_272k_tokens": 3e-8,
+                "cache_read_input_token_cost_above_272k_tokens_batches": 1.5e-8,
+                "cache_read_input_token_cost_above_272k_tokens_flex": 1.5e-8,
+                "cache_read_input_token_cost_above_272k_tokens_priority": 6e-8,
+            },
             "gpt-6-astra": {
                 "input_cost_per_token": 1e-5,
                 "input_cost_per_token_batches": 5e-6,
@@ -209,6 +277,33 @@ class PriceOverridesTest(unittest.TestCase):
             self.assertEqual(overrides[model], catalog[model])
             for field, value in prices.items():
                 self.assertEqual(value, catalog[model][field])
+
+        for model in ("gpt-6-luna", "gpt-6-sol"):
+            for field in (
+                "input_cost_per_token",
+                "output_cost_per_token",
+                "cache_creation_input_token_cost",
+                "cache_read_input_token_cost",
+            ):
+                base = catalog[model][field]
+                long_context_multiplier = (
+                    1.5 if field == "output_cost_per_token" else 2
+                )
+                self.assertAlmostEqual(
+                    base * 2,
+                    catalog[model][field + "_priority"],
+                    delta=1e-18,
+                )
+                self.assertAlmostEqual(
+                    base * long_context_multiplier,
+                    catalog[model][field + "_above_272k_tokens"],
+                    delta=1e-18,
+                )
+                self.assertAlmostEqual(
+                    base * long_context_multiplier * 2,
+                    catalog[model][field + "_above_272k_tokens_priority"],
+                    delta=1e-18,
+                )
 
         for model in ("gpt-5.6-luna", "gpt-5.6-terra"):
             self.assertEqual(
