@@ -28,10 +28,13 @@ entry is maintained by this repository and replaces the synchronized entry
 wholesale. This prevents upstream tier fields from being mixed with locally
 approved prices.
 
-The initial managed set is:
+The managed set is:
 
 - `gpt-5.6-luna`
 - `gpt-5.6-terra`
+- `gpt-6-luna`
+- `gpt-6-sol`
+- `gpt-6-astra`
 
 Aliases are generated after managed replacements. In particular,
 `codex-auto-review` always copies the final managed `gpt-5.6-luna` entry.
