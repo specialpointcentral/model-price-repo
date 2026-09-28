@@ -126,6 +126,23 @@ class PriceOverridesTest(unittest.TestCase):
             self.assertEqual(MANAGED_LUNA, catalog["gpt-5.6-luna"])
             self.assertEqual(MANAGED_LUNA, catalog["codex-auto-review"])
 
+    def test_astra_long_context_prices_match_standard_prices(self):
+        overrides = sync_prices.load_price_overrides(
+            str(ROOT / "price_overrides.json")
+        )
+        astra = overrides["gpt-6-astra"]
+        long_context_prices = {
+            field: price
+            for field, price in astra.items()
+            if "_above_272k_tokens" in field
+        }
+        self.assertEqual(12, len(long_context_prices))
+        for field, price in long_context_prices.items():
+            standard_field = field.replace("_above_272k_tokens", "")
+            with self.subTest(field=field):
+                self.assertIn(standard_field, astra)
+                self.assertEqual(astra[standard_field], price)
+
     def test_repository_artifacts_match_managed_price_cards(self):
         overrides = sync_prices.load_price_overrides(
             str(ROOT / "price_overrides.json")
@@ -245,28 +262,28 @@ class PriceOverridesTest(unittest.TestCase):
                 "input_cost_per_token_batches": 5e-6,
                 "input_cost_per_token_flex": 5e-6,
                 "input_cost_per_token_priority": 2e-5,
-                "input_cost_per_token_above_272k_tokens": 2e-5,
-                "input_cost_per_token_above_272k_tokens_flex": 1e-5,
-                "input_cost_per_token_above_272k_tokens_priority": 4e-5,
+                "input_cost_per_token_above_272k_tokens": 1e-5,
+                "input_cost_per_token_above_272k_tokens_flex": 5e-6,
+                "input_cost_per_token_above_272k_tokens_priority": 2e-5,
                 "output_cost_per_token": 5e-5,
                 "output_cost_per_token_batches": 2.5e-5,
                 "output_cost_per_token_flex": 2.5e-5,
                 "output_cost_per_token_priority": 1e-4,
-                "output_cost_per_token_above_272k_tokens": 7.5e-5,
-                "output_cost_per_token_above_272k_tokens_flex": 3.75e-5,
-                "output_cost_per_token_above_272k_tokens_priority": 1.5e-4,
+                "output_cost_per_token_above_272k_tokens": 5e-5,
+                "output_cost_per_token_above_272k_tokens_flex": 2.5e-5,
+                "output_cost_per_token_above_272k_tokens_priority": 1e-4,
                 "cache_creation_input_token_cost": 1.25e-5,
                 "cache_creation_input_token_cost_flex": 6.25e-6,
                 "cache_creation_input_token_cost_priority": 2.5e-5,
-                "cache_creation_input_token_cost_above_272k_tokens": 2.5e-5,
-                "cache_creation_input_token_cost_above_272k_tokens_flex": 1.25e-5,
-                "cache_creation_input_token_cost_above_272k_tokens_priority": 5e-5,
+                "cache_creation_input_token_cost_above_272k_tokens": 1.25e-5,
+                "cache_creation_input_token_cost_above_272k_tokens_flex": 6.25e-6,
+                "cache_creation_input_token_cost_above_272k_tokens_priority": 2.5e-5,
                 "cache_read_input_token_cost": 2e-6,
                 "cache_read_input_token_cost_flex": 1e-6,
                 "cache_read_input_token_cost_priority": 4e-6,
-                "cache_read_input_token_cost_above_272k_tokens": 4e-6,
-                "cache_read_input_token_cost_above_272k_tokens_flex": 2e-6,
-                "cache_read_input_token_cost_above_272k_tokens_priority": 8e-6,
+                "cache_read_input_token_cost_above_272k_tokens": 2e-6,
+                "cache_read_input_token_cost_above_272k_tokens_flex": 1e-6,
+                "cache_read_input_token_cost_above_272k_tokens_priority": 4e-6,
             },
         }
         self.assertEqual(set(expected), set(overrides))
