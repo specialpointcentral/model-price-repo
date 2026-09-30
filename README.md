@@ -34,6 +34,7 @@ The managed set is:
 - `gpt-5.6-terra`
 - `gpt-6-luna`
 - `gpt-6-sol`
+- `gpt-6.1-sol`
 - `gpt-6-astra`
 
 Aliases are generated after managed replacements. In particular,
@@ -43,6 +44,41 @@ When adding or updating a managed model, review the entire entry, including
 standard, priority, flex, batch, cache, long-context, endpoint, capability, and
 token-limit fields. A managed key must not also exist in
 `config.json.custom_models`.
+
+## GPT-6 site pricing policy
+
+The four GPT-6 / GPT-6.1 managed cards use the Standard token credit ratios in
+[ChatGPT pricing](https://learn.chatgpt.com/docs/pricing), applied separately to
+the unchanged `gpt-5.6-sol` catalog rates: $5 input, $0.50 cached input and $30
+output per million tokens. These are site-specific billing prices, not official
+OpenAI API USD prices or a uniform credits-to-USD conversion.
+
+| Model | Input / 1M | Cached input / 1M | Output / 1M |
+| --- | ---: | ---: | ---: |
+| `gpt-6-astra` | $12.50 | $1.25 | $75 |
+| `gpt-6.1-sol` | $2.50 | $0.125 | $15 |
+| `gpt-6-sol` | $2.50 | $0.25 | $15 |
+| `gpt-6-luna` | $0.125 | $0.0125 | $0.75 |
+
+- **Fast:** `_priority` prices are **2.5x** the corresponding Standard prices,
+  following included subscription usage. Do not substitute the purchased-credit
+  / Enterprise pay-as-you-go multiplier of 2x.
+- **Ultrafast:** `_ultrafast` prices are **8x** Standard for `gpt-6-astra` and
+  `gpt-6.1-sol`, where supported, following included subscription usage. The
+  purchased-credit multiplier is 6x. See [Speed](https://learn.chatgpt.com/docs/agent-configuration/speed).
+- **Long context:** retain the existing site policy above 272,000 input tokens.
+  `gpt-6-sol`, `gpt-6.1-sol` and `gpt-6-luna` use 2x input / cached-input prices
+  and 1.5x output prices. Astra has no long-context surcharge. Apply the speed
+  multiplier to the matching long-context prices as well. The cited ChatGPT
+  pricing page does **not** specify a separate long-context credit rate; these
+  multipliers are retained site policy, not a newly verified official credit rule.
+- **Cache writes:** these four cards have zero separate cache-write surcharge,
+  consistent with the ChatGPT credit documentation. Ordinary uncached input
+  remains billable. Other models, including the GPT-5.6 baseline, are unchanged.
+- Existing Flex / Batch discounts remain 0.5x the corresponding Standard tier
+  as a site policy; the credit page does not establish those discounts.
+- `gpt-6.1-sol` is a complete managed replacement, so additive upstream syncs
+  cannot restore stale or mixed-tier pricing.
 
 ## Configuration
 

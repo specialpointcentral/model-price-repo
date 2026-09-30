@@ -136,12 +136,33 @@ class PriceOverridesTest(unittest.TestCase):
             for field, price in astra.items()
             if "_above_272k_tokens" in field
         }
-        self.assertEqual(12, len(long_context_prices))
+        self.assertEqual(16, len(long_context_prices))
         for field, price in long_context_prices.items():
             standard_field = field.replace("_above_272k_tokens", "")
             with self.subTest(field=field):
                 self.assertIn(standard_field, astra)
                 self.assertEqual(astra[standard_field], price)
+
+    def test_ultrafast_prices_are_eight_times_standard_prices(self):
+        overrides = sync_prices.load_price_overrides(
+            str(ROOT / "price_overrides.json")
+        )
+        for model in ("gpt-6-astra", "gpt-6.1-sol"):
+            self.assertIn(model, overrides)
+            prices = overrides[model]
+            for field in (
+                "input_cost_per_token",
+                "output_cost_per_token",
+                "cache_creation_input_token_cost",
+                "cache_read_input_token_cost",
+            ):
+                for suffix in ("", "_above_272k_tokens"):
+                    with self.subTest(model=model, field=field, suffix=suffix):
+                        self.assertAlmostEqual(
+                            prices[field + suffix] * 8,
+                            prices[field + suffix + "_ultrafast"],
+                            delta=1e-18,
+                        )
 
     def test_repository_artifacts_match_managed_price_cards(self):
         overrides = sync_prices.load_price_overrides(
@@ -154,185 +175,70 @@ class PriceOverridesTest(unittest.TestCase):
         ).read_text(encoding="utf-8").strip()
         config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 
+        # Literal expectations independently derived from the approved credit card.
+        # Order: input, output, cache write surcharge, cached input (USD/token).
         expected = {
-            "gpt-5.6-luna": {
-                "input_cost_per_token": 1e-6,
-                "input_cost_per_token_batches": 5e-7,
-                "input_cost_per_token_flex": 5e-7,
-                "input_cost_per_token_priority": 2e-6,
-                "output_cost_per_token": 6e-6,
-                "output_cost_per_token_batches": 3e-6,
-                "output_cost_per_token_flex": 3e-6,
-                "output_cost_per_token_priority": 1.2e-5,
-                "cache_creation_input_token_cost": 1.25e-6,
-                "cache_creation_input_token_cost_batches": 6.25e-7,
-                "cache_creation_input_token_cost_flex": 6.25e-7,
-                "cache_creation_input_token_cost_priority": 2.5e-6,
-                "cache_read_input_token_cost": 1e-7,
-                "cache_read_input_token_cost_flex": 5e-8,
-                "cache_read_input_token_cost_priority": 2e-7,
-            },
-            "gpt-5.6-terra": {
-                "input_cost_per_token": 2.5e-6,
-                "input_cost_per_token_batches": 1.25e-6,
-                "input_cost_per_token_flex": 1.25e-6,
-                "input_cost_per_token_priority": 5e-6,
-                "output_cost_per_token": 1.5e-5,
-                "output_cost_per_token_batches": 7.5e-6,
-                "output_cost_per_token_flex": 7.5e-6,
-                "output_cost_per_token_priority": 3e-5,
-                "cache_creation_input_token_cost": 3.125e-6,
-                "cache_creation_input_token_cost_batches": 1.5625e-6,
-                "cache_creation_input_token_cost_flex": 1.5625e-6,
-                "cache_creation_input_token_cost_priority": 6.25e-6,
-                "cache_read_input_token_cost": 2.5e-7,
-                "cache_read_input_token_cost_flex": 1.25e-7,
-                "cache_read_input_token_cost_priority": 5e-7,
-            },
-            "gpt-6-sol": {
-                "input_cost_per_token": 3.5e-6,
-                "input_cost_per_token_batches": 1.75e-6,
-                "input_cost_per_token_flex": 1.75e-6,
-                "input_cost_per_token_priority": 7e-6,
-                "input_cost_per_token_above_272k_tokens": 7e-6,
-                "input_cost_per_token_above_272k_tokens_batches": 3.5e-6,
-                "input_cost_per_token_above_272k_tokens_flex": 3.5e-6,
-                "input_cost_per_token_above_272k_tokens_priority": 1.4e-5,
-                "output_cost_per_token": 2e-5,
-                "output_cost_per_token_batches": 1e-5,
-                "output_cost_per_token_flex": 1e-5,
-                "output_cost_per_token_priority": 4e-5,
-                "output_cost_per_token_above_272k_tokens": 3e-5,
-                "output_cost_per_token_above_272k_tokens_batches": 1.5e-5,
-                "output_cost_per_token_above_272k_tokens_flex": 1.5e-5,
-                "output_cost_per_token_above_272k_tokens_priority": 6e-5,
-                "cache_creation_input_token_cost": 4.2e-6,
-                "cache_creation_input_token_cost_batches": 2.1e-6,
-                "cache_creation_input_token_cost_flex": 2.1e-6,
-                "cache_creation_input_token_cost_priority": 8.4e-6,
-                "cache_creation_input_token_cost_above_272k_tokens": 8.4e-6,
-                "cache_creation_input_token_cost_above_272k_tokens_batches": 4.2e-6,
-                "cache_creation_input_token_cost_above_272k_tokens_flex": 4.2e-6,
-                "cache_creation_input_token_cost_above_272k_tokens_priority": 1.68e-5,
-                "cache_read_input_token_cost": 3.5e-7,
-                "cache_read_input_token_cost_batches": 1.75e-7,
-                "cache_read_input_token_cost_flex": 1.75e-7,
-                "cache_read_input_token_cost_priority": 7e-7,
-                "cache_read_input_token_cost_above_272k_tokens": 7e-7,
-                "cache_read_input_token_cost_above_272k_tokens_batches": 3.5e-7,
-                "cache_read_input_token_cost_above_272k_tokens_flex": 3.5e-7,
-                "cache_read_input_token_cost_above_272k_tokens_priority": 1.4e-6,
-            },
-            "gpt-6-luna": {
-                "input_cost_per_token": 1.5e-7,
-                "input_cost_per_token_batches": 7.5e-8,
-                "input_cost_per_token_flex": 7.5e-8,
-                "input_cost_per_token_priority": 3e-7,
-                "input_cost_per_token_above_272k_tokens": 3e-7,
-                "input_cost_per_token_above_272k_tokens_batches": 1.5e-7,
-                "input_cost_per_token_above_272k_tokens_flex": 1.5e-7,
-                "input_cost_per_token_above_272k_tokens_priority": 6e-7,
-                "output_cost_per_token": 1e-6,
-                "output_cost_per_token_batches": 5e-7,
-                "output_cost_per_token_flex": 5e-7,
-                "output_cost_per_token_priority": 2e-6,
-                "output_cost_per_token_above_272k_tokens": 1.5e-6,
-                "output_cost_per_token_above_272k_tokens_batches": 7.5e-7,
-                "output_cost_per_token_above_272k_tokens_flex": 7.5e-7,
-                "output_cost_per_token_above_272k_tokens_priority": 3e-6,
-                "cache_creation_input_token_cost": 2e-7,
-                "cache_creation_input_token_cost_batches": 1e-7,
-                "cache_creation_input_token_cost_flex": 1e-7,
-                "cache_creation_input_token_cost_priority": 4e-7,
-                "cache_creation_input_token_cost_above_272k_tokens": 4e-7,
-                "cache_creation_input_token_cost_above_272k_tokens_batches": 2e-7,
-                "cache_creation_input_token_cost_above_272k_tokens_flex": 2e-7,
-                "cache_creation_input_token_cost_above_272k_tokens_priority": 8e-7,
-                "cache_read_input_token_cost": 1.5e-8,
-                "cache_read_input_token_cost_batches": 7.5e-9,
-                "cache_read_input_token_cost_flex": 7.5e-9,
-                "cache_read_input_token_cost_priority": 3e-8,
-                "cache_read_input_token_cost_above_272k_tokens": 3e-8,
-                "cache_read_input_token_cost_above_272k_tokens_batches": 1.5e-8,
-                "cache_read_input_token_cost_above_272k_tokens_flex": 1.5e-8,
-                "cache_read_input_token_cost_above_272k_tokens_priority": 6e-8,
-            },
-            "gpt-6-astra": {
-                "input_cost_per_token": 1e-5,
-                "input_cost_per_token_batches": 5e-6,
-                "input_cost_per_token_flex": 5e-6,
-                "input_cost_per_token_priority": 2e-5,
-                "input_cost_per_token_above_272k_tokens": 1e-5,
-                "input_cost_per_token_above_272k_tokens_flex": 5e-6,
-                "input_cost_per_token_above_272k_tokens_priority": 2e-5,
-                "output_cost_per_token": 5e-5,
-                "output_cost_per_token_batches": 2.5e-5,
-                "output_cost_per_token_flex": 2.5e-5,
-                "output_cost_per_token_priority": 1e-4,
-                "output_cost_per_token_above_272k_tokens": 5e-5,
-                "output_cost_per_token_above_272k_tokens_flex": 2.5e-5,
-                "output_cost_per_token_above_272k_tokens_priority": 1e-4,
-                "cache_creation_input_token_cost": 1.25e-5,
-                "cache_creation_input_token_cost_flex": 6.25e-6,
-                "cache_creation_input_token_cost_priority": 2.5e-5,
-                "cache_creation_input_token_cost_above_272k_tokens": 1.25e-5,
-                "cache_creation_input_token_cost_above_272k_tokens_flex": 6.25e-6,
-                "cache_creation_input_token_cost_above_272k_tokens_priority": 2.5e-5,
-                "cache_read_input_token_cost": 2e-6,
-                "cache_read_input_token_cost_flex": 1e-6,
-                "cache_read_input_token_cost_priority": 4e-6,
-                "cache_read_input_token_cost_above_272k_tokens": 2e-6,
-                "cache_read_input_token_cost_above_272k_tokens_flex": 1e-6,
-                "cache_read_input_token_cost_above_272k_tokens_priority": 4e-6,
-            },
+            "gpt-5.6-luna": (1e-6, 6e-6, 1.25e-6, 1e-7),
+            "gpt-5.6-terra": (2.5e-6, 1.5e-5, 3.125e-6, 2.5e-7),
+            "gpt-6-sol": (2.5e-6, 1.5e-5, 0, 2.5e-7),
+            "gpt-6.1-sol": (2.5e-6, 1.5e-5, 0, 1.25e-7),
+            "gpt-6-luna": (1.25e-7, 7.5e-7, 0, 1.25e-8),
+            "gpt-6-astra": (1.25e-5, 7.5e-5, 0, 1.25e-6),
         }
-        self.assertEqual(set(expected), set(overrides))
-        self.assertTrue(
-            set(overrides).isdisjoint(config.get("custom_models", {}))
+        fields = (
+            "input_cost_per_token",
+            "output_cost_per_token",
+            "cache_creation_input_token_cost",
+            "cache_read_input_token_cost",
         )
-        for model, prices in expected.items():
+        self.assertEqual(set(expected), set(overrides))
+        self.assertTrue(set(overrides).isdisjoint(config.get("custom_models", {})))
+        for model, base_prices in expected.items():
             self.assertEqual(overrides[model], catalog[model])
-            for field, value in prices.items():
-                self.assertEqual(value, catalog[model][field])
+            for field, value in zip(fields, base_prices):
+                with self.subTest(model=model, field=field):
+                    self.assertEqual(value, catalog[model][field])
+                    fast_multiplier = 2.5 if model.startswith("gpt-6") else 2
+                    self.assertAlmostEqual(
+                        value * fast_multiplier,
+                        catalog[model][field + "_priority"],
+                        delta=1e-18,
+                    )
+                    for suffix in ("_flex", "_batches"):
+                        if field + suffix in catalog[model]:
+                            self.assertAlmostEqual(
+                                value * 0.5,
+                                catalog[model][field + suffix],
+                                delta=1e-18,
+                            )
 
-        for model in ("gpt-6-luna", "gpt-6-sol"):
-            for field in (
-                "input_cost_per_token",
-                "output_cost_per_token",
-                "cache_creation_input_token_cost",
-                "cache_read_input_token_cost",
-            ):
+        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra"):
+            for field in fields:
                 base = catalog[model][field]
-                long_context_multiplier = (
-                    1.5 if field == "output_cost_per_token" else 2
+                long_multiplier = (
+                    1 if model == "gpt-6-astra"
+                    else 1.5 if field == "output_cost_per_token" else 2
                 )
-                self.assertAlmostEqual(
-                    base * 2,
-                    catalog[model][field + "_priority"],
-                    delta=1e-18,
-                )
-                self.assertAlmostEqual(
-                    base * long_context_multiplier,
-                    catalog[model][field + "_above_272k_tokens"],
-                    delta=1e-18,
-                )
-                self.assertAlmostEqual(
-                    base * long_context_multiplier * 2,
-                    catalog[model][field + "_above_272k_tokens_priority"],
-                    delta=1e-18,
-                )
+                for suffix, speed_multiplier in (("", 1), ("_priority", 2.5)):
+                    with self.subTest(model=model, field=field, suffix=suffix):
+                        self.assertAlmostEqual(
+                            base * long_multiplier * speed_multiplier,
+                            catalog[model][field + "_above_272k_tokens" + suffix],
+                            delta=1e-18,
+                        )
+                for suffix in ("_flex", "_batches"):
+                    long_field = field + "_above_272k_tokens" + suffix
+                    if long_field in catalog[model]:
+                        self.assertAlmostEqual(
+                            base * long_multiplier * 0.5,
+                            catalog[model][long_field],
+                            delta=1e-18,
+                        )
 
         for model in ("gpt-5.6-luna", "gpt-5.6-terra"):
-            self.assertEqual(
-                272000,
-                catalog[model]["long_context_input_token_threshold"],
-            )
-            self.assertEqual(
-                2.0, catalog[model]["long_context_input_cost_multiplier"]
-            )
-            self.assertEqual(
-                1.5, catalog[model]["long_context_output_cost_multiplier"]
-            )
+            self.assertEqual(272000, catalog[model]["long_context_input_token_threshold"])
+            self.assertEqual(2.0, catalog[model]["long_context_input_cost_multiplier"])
+            self.assertEqual(1.5, catalog[model]["long_context_output_cost_multiplier"])
             self.assertFalse(any("_above_" in key for key in catalog[model]))
 
         self.assertEqual(overrides["gpt-5.6-luna"], catalog["codex-auto-review"])
