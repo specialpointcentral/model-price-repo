@@ -136,12 +136,31 @@ class PriceOverridesTest(unittest.TestCase):
             for field, price in astra.items()
             if "_above_272k_tokens" in field
         }
-        self.assertEqual(12, len(long_context_prices))
+        self.assertEqual(16, len(long_context_prices))
         for field, price in long_context_prices.items():
             standard_field = field.replace("_above_272k_tokens", "")
             with self.subTest(field=field):
                 self.assertIn(standard_field, astra)
                 self.assertEqual(astra[standard_field], price)
+
+    def test_astra_ultrafast_prices_are_six_times_standard_prices(self):
+        overrides = sync_prices.load_price_overrides(
+            str(ROOT / "price_overrides.json")
+        )
+        astra = overrides["gpt-6-astra"]
+        for field in (
+            "input_cost_per_token",
+            "output_cost_per_token",
+            "cache_creation_input_token_cost",
+            "cache_read_input_token_cost",
+        ):
+            for suffix in ("", "_above_272k_tokens"):
+                with self.subTest(field=field, suffix=suffix):
+                    self.assertAlmostEqual(
+                        astra[field + suffix] * 6,
+                        astra[field + suffix + "_ultrafast"],
+                        delta=1e-18,
+                    )
 
     def test_repository_artifacts_match_managed_price_cards(self):
         overrides = sync_prices.load_price_overrides(
@@ -284,6 +303,14 @@ class PriceOverridesTest(unittest.TestCase):
                 "cache_read_input_token_cost_above_272k_tokens": 2e-6,
                 "cache_read_input_token_cost_above_272k_tokens_flex": 1e-6,
                 "cache_read_input_token_cost_above_272k_tokens_priority": 4e-6,
+                "input_cost_per_token_ultrafast": 6e-5,
+                "input_cost_per_token_above_272k_tokens_ultrafast": 6e-5,
+                "output_cost_per_token_ultrafast": 3e-4,
+                "output_cost_per_token_above_272k_tokens_ultrafast": 3e-4,
+                "cache_creation_input_token_cost_ultrafast": 7.5e-5,
+                "cache_creation_input_token_cost_above_272k_tokens_ultrafast": 7.5e-5,
+                "cache_read_input_token_cost_ultrafast": 1.2e-5,
+                "cache_read_input_token_cost_above_272k_tokens_ultrafast": 1.2e-5,
             },
         }
         self.assertEqual(set(expected), set(overrides))
