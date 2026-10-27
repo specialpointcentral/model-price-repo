@@ -182,6 +182,7 @@ class PriceOverridesTest(unittest.TestCase):
             "gpt-5.6-terra": (2.5e-6, 1.5e-5, 3.125e-6, 2.5e-7),
             "gpt-6-sol": (2.5e-6, 1.5e-5, 0, 2.5e-7),
             "gpt-6.1-sol": (2.5e-6, 1.5e-5, 3.125e-6, 1.25e-7),
+            "gpt-6.1-terra": (1.25e-6, 7.5e-6, 1.5625e-6, 6.25e-8),
             "gpt-6-luna": (1.25e-7, 7.5e-7, 0, 1.25e-8),
             "gpt-6-astra": (1.25e-5, 7.5e-5, 0, 1.25e-6),
         }
@@ -212,7 +213,7 @@ class PriceOverridesTest(unittest.TestCase):
                                 delta=1e-18,
                             )
 
-        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra"):
+        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra"):
             for field in fields:
                 base = catalog[model][field]
                 long_multiplier = (
@@ -243,10 +244,42 @@ class PriceOverridesTest(unittest.TestCase):
 
         self.assertEqual(overrides["gpt-5.6-luna"], catalog["codex-auto-review"])
         self.assertEqual(hashlib.sha256(catalog_bytes).hexdigest(), stored_hash)
-        self.assertEqual(
-            1e-4,
-            catalog["gpt-6.1-sol"]["cache_creation_input_token_cost_above_12hr_above_272k_tokens_ultrafast"],
-        )
+
+    def test_gpt61_cache_write_prices_cover_all_supported_tiers(self):
+        catalog = json.loads((ROOT / "model_prices_and_context_window.json").read_text())
+        # USD per million tokens, in Sol / Terra order. Terra has no Ultrafast.
+        expected = {
+            "": (3.125, 1.5625),
+            "_batches": (1.5625, 0.78125),
+            "_flex": (1.5625, 0.78125),
+            "_priority": (7.8125, 3.90625),
+            "_ultrafast": (25, None),
+            "_above_272k_tokens": (6.25, 3.125),
+            "_above_272k_tokens_batches": (3.125, 1.5625),
+            "_above_272k_tokens_flex": (3.125, 1.5625),
+            "_above_272k_tokens_priority": (15.625, 7.8125),
+            "_above_272k_tokens_ultrafast": (50, None),
+            "_above_12hr": (6.25, 3.125),
+            "_above_12hr_batches": (3.125, 1.5625),
+            "_above_12hr_flex": (3.125, 1.5625),
+            "_above_12hr_priority": (15.625, 7.8125),
+            "_above_12hr_ultrafast": (50, None),
+            "_above_12hr_above_272k_tokens": (12.5, 6.25),
+            "_above_12hr_above_272k_tokens_batches": (6.25, 3.125),
+            "_above_12hr_above_272k_tokens_flex": (6.25, 3.125),
+            "_above_12hr_above_272k_tokens_priority": (31.25, 15.625),
+            "_above_12hr_above_272k_tokens_ultrafast": (100, None),
+        }
+        prefix = "cache_creation_input_token_cost"
+        for index, model in enumerate(("gpt-6.1-sol", "gpt-6.1-terra")):
+            with self.subTest(model=model):
+                self.assertEqual(
+                    {
+                        prefix + suffix: prices[index] / 1e6
+                        for suffix, prices in expected.items() if prices[index] is not None
+                    },
+                    {key: value for key, value in catalog[model].items() if key.startswith(prefix)},
+                )
 
 
 if __name__ == "__main__":
