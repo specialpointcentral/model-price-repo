@@ -182,6 +182,7 @@ class PriceOverridesTest(unittest.TestCase):
             "gpt-5.6-terra": (2.5e-6, 1.5e-5, 3.125e-6, 2.5e-7),
             "gpt-6-sol": (2.5e-6, 1.5e-5, 0, 2.5e-7),
             "gpt-6.1-sol": (2.5e-6, 1.5e-5, 0, 1.25e-7),
+            "gpt-6.1-terra": (1.25e-6, 7.5e-6, 1.25e-6, 6.25e-8),
             "gpt-6-luna": (1.25e-7, 7.5e-7, 0, 1.25e-8),
             "gpt-6-astra": (1.25e-5, 7.5e-5, 0, 1.25e-6),
         }
@@ -199,6 +200,8 @@ class PriceOverridesTest(unittest.TestCase):
                 with self.subTest(model=model, field=field):
                     self.assertEqual(value, catalog[model][field])
                     fast_multiplier = 2.5 if model.startswith("gpt-6") else 2
+                    if model == "gpt-6.1-terra" and field == "cache_creation_input_token_cost":
+                        fast_multiplier = 2  # Preserve Terra's existing cache-write rates.
                     self.assertAlmostEqual(
                         value * fast_multiplier,
                         catalog[model][field + "_priority"],
@@ -212,7 +215,7 @@ class PriceOverridesTest(unittest.TestCase):
                                 delta=1e-18,
                             )
 
-        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra"):
+        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra"):
             for field in fields:
                 base = catalog[model][field]
                 long_multiplier = (
@@ -220,6 +223,8 @@ class PriceOverridesTest(unittest.TestCase):
                     else 1.5 if field == "output_cost_per_token" else 2
                 )
                 for suffix, speed_multiplier in (("", 1), ("_priority", 2.5)):
+                    if model == "gpt-6.1-terra" and field == "cache_creation_input_token_cost" and suffix == "_priority":
+                        speed_multiplier = 2
                     with self.subTest(model=model, field=field, suffix=suffix):
                         self.assertAlmostEqual(
                             base * long_multiplier * speed_multiplier,
@@ -243,6 +248,34 @@ class PriceOverridesTest(unittest.TestCase):
 
         self.assertEqual(overrides["gpt-5.6-luna"], catalog["codex-auto-review"])
         self.assertEqual(hashlib.sha256(catalog_bytes).hexdigest(), stored_hash)
+
+    def test_terra_preserves_all_cache_write_prices(self):
+        catalog = json.loads((ROOT / "model_prices_and_context_window.json").read_text())
+        terra = catalog["gpt-6.1-terra"]
+        # Snapshot before the credit-ratio adjustment, including retention tiers.
+        expected = {
+            "": 1.25e-6,
+            "_batches": 6.25e-7,
+            "_flex": 6.25e-7,
+            "_priority": 2.5e-6,
+            "_above_272k_tokens": 2.5e-6,
+            "_above_272k_tokens_batches": 1.25e-6,
+            "_above_272k_tokens_flex": 1.25e-6,
+            "_above_272k_tokens_priority": 5e-6,
+            "_above_12hr": 2.5e-6,
+            "_above_12hr_batches": 1.25e-6,
+            "_above_12hr_flex": 1.25e-6,
+            "_above_12hr_priority": 5e-6,
+            "_above_12hr_above_272k_tokens": 5e-6,
+            "_above_12hr_above_272k_tokens_batches": 2.5e-6,
+            "_above_12hr_above_272k_tokens_flex": 2.5e-6,
+            "_above_12hr_above_272k_tokens_priority": 1e-5,
+        }
+        prefix = "cache_creation_input_token_cost"
+        self.assertEqual(
+            {prefix + suffix: value for suffix, value in expected.items()},
+            {key: value for key, value in terra.items() if key.startswith(prefix)},
+        )
 
 
 if __name__ == "__main__":
