@@ -131,6 +131,35 @@ def filter_upstream(data: dict, config: dict) -> dict:
     return filtered
 
 
+def validate_required_price_fields(
+    data: dict, rules: dict, required_sources=(), allow_aliases: bool = False,
+) -> None:
+    """Reject incomplete upstream price cards before they can overwrite the catalog."""
+    if not isinstance(rules, dict):
+        raise ValueError("required_price_fields must be a JSON object")
+    if not isinstance(required_sources, (list, tuple)) or not all(
+        isinstance(name, str) and name for name in required_sources
+    ):
+        raise ValueError("required_price_sources must be a list of model names")
+    for name in required_sources:
+        if name not in data:
+            raise ValueError(f"Required upstream price source missing: {name}")
+    for prefix, fields in rules.items():
+        if not isinstance(prefix, str) or not prefix or not isinstance(fields, list) or not all(
+            isinstance(field, str) and field for field in fields
+        ):
+            raise ValueError("required_price_fields must map prefixes to lists of field names")
+        for model, entry in data.items():
+            if not model.startswith(prefix):
+                continue
+            if allow_aliases and model not in required_sources and isinstance(entry, dict) and set(entry) == {"alias_of"}:
+                continue
+            for field in fields:
+                value = entry.get(field) if isinstance(entry, dict) else None
+                if not _is_valid_base_token_price(value) or value <= 0:
+                    raise ValueError(f"Incomplete upstream pricing for {model!r}: {field}")
+
+
 # ---------------------------------------------------------------------------
 # Merge
 # ---------------------------------------------------------------------------
@@ -141,6 +170,7 @@ def merge_models(
     filtered: dict,
     sync_mode: str,
     update_existing: bool,
+    refresh_existing_prefixes: tuple[str, ...] = (),
 ) -> tuple[dict, dict]:
     """Merge filtered upstream into existing data.
 
@@ -151,24 +181,31 @@ def merge_models(
     if sync_mode == "full":
         # Full mode: replace entirely with filtered upstream
         stats["added"] = len(filtered)
-        return dict(filtered), stats
+        return copy.deepcopy(filtered), stats
 
     # Additive mode
-    merged = dict(existing)
+    merged = copy.deepcopy(existing)
     for key, value in filtered.items():
         if key not in merged:
-            merged[key] = value
+            merged[key] = copy.deepcopy(value)
             stats["added"] += 1
-        elif update_existing:
+        elif update_existing or key.startswith(refresh_existing_prefixes):
             if merged[key] != value:
-                merged[key] = value
+                merged[key] = copy.deepcopy(value)
                 stats["updated"] += 1
             else:
                 stats["unchanged"] += 1
         else:
             # update_existing=False: preserve existing fields, but absorb new fields from upstream
             if isinstance(merged[key], dict) and isinstance(value, dict):
-                new_fields = {k: v for k, v in value.items() if k not in merged[key]}
+                if set(merged[key]) == {"alias_of"} and set(value) == {"alias_of"}:
+                    if merged[key] != value:
+                        merged[key] = copy.deepcopy(value)
+                        stats["updated"] += 1
+                    else:
+                        stats["unchanged"] += 1
+                    continue
+                new_fields = {k: copy.deepcopy(v) for k, v in value.items() if k not in merged[key]}
                 if new_fields:
                     merged[key].update(new_fields)
                     log.info("Model '%s': absorbed %d new field(s) from upstream: %s", key, len(new_fields), list(new_fields))
@@ -181,24 +218,85 @@ def merge_models(
     return merged, stats
 
 
+def apply_legacy_fallbacks(data: dict, path: str) -> dict:
+    """Restore historical models and fields only when they are missing."""
+    with open(path, "r", encoding="utf-8") as f:
+        fallbacks = json.load(f)
+    if not isinstance(fallbacks, dict) or any(
+        not isinstance(name, str) or not isinstance(entry, dict)
+        for name, entry in fallbacks.items()
+    ):
+        raise ValueError("Legacy fallback models must be a JSON object of model objects")
+
+    for model, fallback in fallbacks.items():
+        if model not in data:
+            data[model] = copy.deepcopy(fallback)
+        elif isinstance(data[model], dict):
+            for field, value in fallback.items():
+                if field not in data[model]:
+                    data[model][field] = copy.deepcopy(value)
+    log.info("Applied historical fallback data for %d models.", len(fallbacks))
+    return data
+
+
 # ---------------------------------------------------------------------------
 # Aliases & custom models
 # ---------------------------------------------------------------------------
 
 
-def apply_aliases(data: dict, aliases: dict) -> dict:
-    """Deep-copy source model data into alias keys."""
-    for alias_key, alias_cfg in aliases.items():
-        source = alias_cfg.get("source", "")
-        if source not in data:
-            log.warning(
-                "Alias '%s': source model '%s' not found; skipping.",
-                alias_key,
-                source,
-            )
+def apply_aliases(
+    data: dict, aliases: dict, protected: set[str] | None = None, *,
+    upstream: dict | None = None, custom: dict | None = None,
+    required_upstream_aliases=(),
+) -> dict:
+    """Resolve configured and upstream alias chains from final target prices."""
+    protected = protected or set()
+    custom = custom or {}
+    upstream_aliases = {
+        name: entry["alias_of"] for name, entry in upstream.items()
+        if isinstance(entry, dict) and set(entry) == {"alias_of"}
+        and isinstance(entry["alias_of"], str)
+    } if upstream is not None else {}
+    if not isinstance(required_upstream_aliases, (list, tuple)) or not all(
+        isinstance(name, str) and name for name in required_upstream_aliases
+    ):
+        raise ValueError("required_upstream_aliases must be a list of model names")
+    for name in required_upstream_aliases:
+        if name not in upstream_aliases and name not in protected:
+            raise ValueError(f"Required upstream alias missing: {name}")
+    graph = dict(upstream_aliases)
+    graph.update({name: cfg.get("source", "") for name, cfg in aliases.items()})
+
+    def resolve(name: str, visited: set[str]):
+        if name in visited:
+            return None
+        if name in protected:
+            return copy.deepcopy(data.get(name))
+        if name in graph:
+            target = graph[name]
+            if not isinstance(target, str) or not target:
+                return None
+            source = resolve(target, visited | {name})
+            if not isinstance(source, dict):
+                return None
+            result = copy.deepcopy(source)
+            if isinstance(custom.get(name), dict):
+                result.update(copy.deepcopy(custom[name]))
+            return result
+        source = data.get(name)
+        return copy.deepcopy(source) if isinstance(source, dict) and set(source) != {"alias_of"} else None
+
+    for alias, target in graph.items():
+        if alias in protected:
             continue
-        data[alias_key] = copy.deepcopy(data[source])
-        log.info("Alias '%s' -> '%s' applied.", alias_key, source)
+        resolved = resolve(alias, set())
+        if resolved is not None:
+            data[alias] = resolved
+            log.info("Alias '%s' -> '%s' materialized.", alias, target)
+        elif alias in required_upstream_aliases:
+            raise ValueError(f"Required upstream alias cannot be resolved: {alias}")
+        else:
+            log.warning("Alias '%s': source model '%s' not found; skipping.", alias, target)
     return data
 
 
@@ -229,6 +327,25 @@ def _is_valid_base_token_price(value) -> bool:
         and math.isfinite(value)
         and value >= 0
     )
+
+
+def validate_token_price_overrides(data: dict, models: list, custom: dict) -> None:
+    """Require reviewed local values for every upstream token-price field."""
+    for model in models:
+        entry = data.get(model)
+        overrides = custom.get(model)
+        if not isinstance(entry, dict) or not isinstance(overrides, dict):
+            raise ValueError(f"Missing upstream entry or token price overrides for {model}")
+        fields = {field for field in entry if "cost" in field and "token" in field}
+        missing = sorted(fields - overrides.keys())
+        if missing:
+            raise ValueError(f"Unreviewed token price fields for {model}: {', '.join(missing)}")
+        invalid = sorted(
+            field for field, value in overrides.items()
+            if "cost" in field and "token" in field and not _is_valid_base_token_price(value)
+        )
+        if invalid:
+            raise ValueError(f"Invalid token price overrides for {model}: {', '.join(invalid)}")
 
 
 def load_price_overrides(path: str) -> dict:
@@ -361,6 +478,12 @@ def main() -> None:
 
     # 4. Filter
     filtered = filter_upstream(upstream, config)
+    required_fields = config.get("required_price_fields", {})
+    required_sources = config.get("required_price_sources", [])
+    validate_required_price_fields(filtered, required_fields, required_sources, allow_aliases=True)
+    validate_token_price_overrides(
+        filtered, config.get("require_token_price_overrides", []), config.get("custom_models", {}),
+    )
 
     # 5. Merge
     merged, stats = merge_models(
@@ -368,6 +491,7 @@ def main() -> None:
         filtered,
         config["sync_mode"],
         config.get("update_existing", False),
+        tuple(config.get("refresh_existing_prefixes", [])),
     )
     log.info(
         "Merge stats: %d added, %d updated, %d unchanged.",
@@ -376,29 +500,37 @@ def main() -> None:
         stats["unchanged"],
     )
 
-    # 6. Auto-fill cache 1hr pricing
+    # 6. Restore historical entries without overriding current data.
+    fallback_path = config.get("legacy_fallback_file")
+    if fallback_path:
+        merged = apply_legacy_fallbacks(merged, os.path.join(repo_root, fallback_path))
+
+    # 7. Auto-fill cache 1hr pricing
     cache_1hr_count = fill_cache_1hr_pricing(merged, config)
 
-    # 7. Custom models
+    # 8. Custom models
     custom = config.get("custom_models", {})
     if custom:
         merged = apply_custom_models(merged, custom)
 
-    # 8. Site-managed entries
+    # 9. Site-managed entries
     overrides = load_price_overrides(
         os.path.join(repo_root, "price_overrides.json")
     )
     merged = apply_price_overrides(merged, overrides)
 
-    # 9. Aliases must copy the final source entries
+    # 10. Aliases must copy the final source entries.
     aliases = config.get("aliases", {})
-    if aliases:
-        merged = apply_aliases(merged, aliases)
+    merged = apply_aliases(
+        merged, aliases, set(overrides), upstream=filtered, custom=custom,
+        required_upstream_aliases=config.get("required_upstream_aliases", []),
+    )
+    validate_required_price_fields(merged, required_fields, required_sources)
 
-    # 10. Write output
+    # 11. Write output
     changed, new_hash = write_output(merged, output_path, hash_path, old_hash)
 
-    # 11. Report
+    # 12. Report
     log.info("--- Sync Report ---")
     log.info("Total models in output: %d", len(merged))
     log.info("Added:     %d", stats["added"])
