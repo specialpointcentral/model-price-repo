@@ -4,10 +4,46 @@
   "hash_file": "model_prices_and_context_window.sha256",
   "sync_mode": "additive",
   "update_existing": false,
+  "refresh_existing_prefixes": [
+    "claude-fable-5-2",
+    "gemini/gemini-4-",
+    "vertex_ai/gemini-4-"
+  ],
+  "required_price_sources": [
+    "claude-fable-5-2",
+    "gemini/gemini-4-argon",
+    "gemini/gemini-4-carbon",
+    "vertex_ai/gemini-4-argon",
+    "vertex_ai/gemini-4-carbon",
+    "vertex_ai/gemini-4-argon-cyber-permissive",
+    "vertex_ai/gemini-4-carbon-cyber-permissive"
+  ],
+  "required_upstream_aliases": [
+    "claude-fable-latest"
+  ],
+  "required_price_fields": {
+    "claude-fable-5-2": [
+      "input_cost_per_token", "output_cost_per_token",
+      "cache_read_input_token_cost", "cache_creation_input_token_cost"
+    ],
+    "claude-fable-latest": [
+      "input_cost_per_token", "output_cost_per_token",
+      "cache_read_input_token_cost", "cache_creation_input_token_cost"
+    ],
+    "gemini/gemini-4-": [
+      "input_cost_per_token", "output_cost_per_token", "cache_read_input_token_cost"
+    ],
+    "vertex_ai/gemini-4-": [
+      "input_cost_per_token", "output_cost_per_token", "cache_read_input_token_cost"
+    ]
+  },
+  "legacy_fallback_file": "legacy_gemini_prices.json",
   "prefix_filters": [
     "claude-",
     "gpt-",
     "gemini-",
+    "gemini/gemini-4-",
+    "vertex_ai/gemini-4-",
     "o1-",
     "o3-",
     "o3",
@@ -50,6 +86,46 @@
       "source": "gemini-3-flash-preview",
       "description": "Alias for gemini-3-flash-preview"
     },
+    "gemini-4-argon": {
+      "source": "gemini/gemini-4-argon",
+      "description": "Gemini API pricing for Gemini 4 Argon"
+    },
+    "gemini-4-carbon": {
+      "source": "gemini/gemini-4-carbon",
+      "description": "Gemini API pricing for Gemini 4 Carbon"
+    },
+    "gemini-4-argon-low": {
+      "source": "gemini-4-argon",
+      "description": "Gemini 4 Argon low thinking level"
+    },
+    "gemini-4-argon-medium": {
+      "source": "gemini-4-argon",
+      "description": "Gemini 4 Argon medium thinking level"
+    },
+    "gemini-4-argon-high": {
+      "source": "gemini-4-argon",
+      "description": "Gemini 4 Argon high thinking level"
+    },
+    "gemini-4-carbon-low": {
+      "source": "gemini-4-carbon",
+      "description": "Gemini 4 Carbon low thinking level"
+    },
+    "gemini-4-carbon-medium": {
+      "source": "gemini-4-carbon",
+      "description": "Gemini 4 Carbon medium thinking level"
+    },
+    "gemini-4-carbon-high": {
+      "source": "gemini-4-carbon",
+      "description": "Gemini 4 Carbon high thinking level"
+    },
+    "gemini-4-argon-cyber-permissive": {
+      "source": "vertex_ai/gemini-4-argon-cyber-permissive",
+      "description": "Vertex AI pricing for Gemini 4 Argon Cyber Permissive"
+    },
+    "gemini-4-carbon-cyber-permissive": {
+      "source": "vertex_ai/gemini-4-carbon-cyber-permissive",
+      "description": "Vertex AI pricing for Gemini 4 Carbon Cyber Permissive"
+    },
     "codex-auto-review": {
       "source": "gpt-5.6-luna",
       "description": "Alias for gpt-5.6-luna with auto-review enabled"
@@ -59,7 +135,76 @@
     "model_prefix": "claude-",
     "ratio": 1.6
   },
+  "require_token_price_overrides": [
+    "gemini/gemini-4-argon",
+    "gemini/gemini-4-carbon",
+    "vertex_ai/gemini-4-argon",
+    "vertex_ai/gemini-4-carbon"
+  ],
   "custom_models": {
+    "gemini/gemini-4-argon": {
+      "cache_read_input_token_cost": 2e-07,
+      "cache_read_input_token_cost_batches": 1e-07,
+      "cache_read_input_token_cost_flex": 1e-07,
+      "cache_read_input_token_cost_priority": 3.6e-07,
+      "input_cost_per_token": 4e-06,
+      "input_cost_per_token_batches": 2e-06,
+      "input_cost_per_token_flex": 2e-06,
+      "input_cost_per_token_priority": 7.2e-06,
+      "output_cost_per_reasoning_token": 2e-05,
+      "output_cost_per_token": 2e-05,
+      "output_cost_per_token_batches": 1e-05,
+      "output_cost_per_token_flex": 1e-05,
+      "output_cost_per_token_priority": 3.6e-05
+    },
+    "gemini/gemini-4-carbon": {
+      "cache_read_input_token_cost": 2e-07,
+      "cache_read_input_token_cost_batches": 1e-07,
+      "cache_read_input_token_cost_flex": 1e-07,
+      "cache_read_input_token_cost_priority": 3.6e-07,
+      "input_cost_per_token": 4e-06,
+      "input_cost_per_token_batches": 2e-06,
+      "input_cost_per_token_flex": 2e-06,
+      "input_cost_per_token_priority": 7.2e-06,
+      "output_cost_per_reasoning_token": 2e-05,
+      "output_cost_per_token": 2e-05,
+      "output_cost_per_token_batches": 1e-05,
+      "output_cost_per_token_flex": 1e-05,
+      "output_cost_per_token_priority": 3.6e-05
+    },
+    "vertex_ai/gemini-4-argon": {
+      "cache_read_input_token_cost": 2e-07,
+      "cache_read_input_token_cost_batches": 1e-07,
+      "cache_read_input_token_cost_flex": 1e-07,
+      "cache_read_input_token_cost_priority": 3.6e-07,
+      "input_cost_per_audio_token": 4e-06,
+      "input_cost_per_audio_token_batches": 2e-06,
+      "input_cost_per_audio_token_priority": 7.2e-06,
+      "input_cost_per_token": 4e-06,
+      "input_cost_per_token_batches": 2e-06,
+      "input_cost_per_token_flex": 2e-06,
+      "input_cost_per_token_priority": 7.2e-06,
+      "output_cost_per_reasoning_token": 2e-05,
+      "output_cost_per_token": 2e-05,
+      "output_cost_per_token_batches": 1e-05,
+      "output_cost_per_token_flex": 1e-05,
+      "output_cost_per_token_priority": 3.6e-05
+    },
+    "vertex_ai/gemini-4-carbon": {
+      "cache_read_input_token_cost": 2e-07,
+      "cache_read_input_token_cost_batches": 1e-07,
+      "cache_read_input_token_cost_priority": 3.6e-07,
+      "input_cost_per_audio_token": 4e-06,
+      "input_cost_per_audio_token_batches": 2e-06,
+      "input_cost_per_audio_token_priority": 7.2e-06,
+      "input_cost_per_token": 4e-06,
+      "input_cost_per_token_batches": 2e-06,
+      "input_cost_per_token_priority": 7.2e-06,
+      "output_cost_per_reasoning_token": 2e-05,
+      "output_cost_per_token": 2e-05,
+      "output_cost_per_token_batches": 1e-05,
+      "output_cost_per_token_priority": 3.6e-05
+    },
     "claude-sonnet-5": {
       "_comment": "Per platform.claude.com/docs/en/about-claude/pricing: 'The $2/$10 per million input/output token pricing for Claude Sonnet 5 ... is now the standard price. The previously scheduled increase to $3/$15 ... on September 1, 2026 will not occur.' This is the permanent standard price; do NOT remove this override on 2026-09-01.",
       "cache_creation_input_token_cost": 2.5e-06,
