@@ -45,7 +45,7 @@
       "cache_read_input_token_cost"
     ]
   },
-  "legacy_fallback_file": "legacy_gemini_prices.json",
+  "legacy_fallback_file": "legacy_model_prices.json",
   "prefix_filters": [
     "claude-",
     "gpt-",
