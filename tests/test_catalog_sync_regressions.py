@@ -436,11 +436,27 @@ class CatalogSyncRegressionTest(unittest.TestCase):
     def test_fresh_rebuild_retains_legacy_gemini_image_model(self):
         config = self.config()
         config["legacy_fallback_file"] = "fallbacks.json"
-        fallbacks = json.loads((ROOT / "legacy_gemini_prices.json").read_text(encoding="utf-8"))
+        fallbacks = json.loads((ROOT / "legacy_model_prices.json").read_text(encoding="utf-8"))
         catalog = self.run_sync(config, {}, {}, fallbacks)
         self.assertIn("gemini-2.0-flash-exp-image-generation", catalog)
         self.assertIn("input_cost_per_token", catalog["gemini-2.0-flash-exp-image-generation"])
         self.assertIn("output_cost_per_token", catalog["gemini-2.0-flash-exp-image-generation"])
+
+    def test_fresh_rebuild_retains_preexisting_claude_and_openai_models(self):
+        config = self.config()
+        config["legacy_fallback_file"] = "fallbacks.json"
+        fallbacks = json.loads((ROOT / "legacy_model_prices.json").read_text(encoding="utf-8"))
+        catalog = self.run_sync(config, {}, {}, fallbacks)
+        preexisting = {
+            "claude-3-7-sonnet-20250219", "claude-3-haiku-20240307", "claude-3-opus-20240229",
+            "claude-4-opus-20250514", "claude-4-sonnet-20250514", "claude-opus-4-1",
+            "claude-opus-4-1-20250805", "claude-opus-4-20250514", "claude-sonnet-4-20250514",
+            "gpt-4-0125-preview", "gpt-4-0314", "gpt-4-turbo-preview", "gpt-4o-audio-preview",
+            "gpt-4o-mini-audio-preview", "gpt-4o-mini-realtime-preview", "gpt-4o-realtime-preview",
+            "gpt-4o-realtime-preview-2024-12-17", "gpt-4o-realtime-preview-2025-06-03",
+            "gpt-realtime-mini-2025-10-06",
+        }
+        self.assertEqual([], sorted(preexisting - catalog.keys()))
 
 
 class RebuildTest(unittest.TestCase):

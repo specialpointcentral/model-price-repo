@@ -9,7 +9,7 @@ A GitHub Actions workflow runs every 10 minutes (and on manual trigger):
 1. Downloads the full `model_prices_and_context_window.json` from litellm
 2. Filters models by the prefix rules in `config.json`
 3. Merges models into the existing output, preserving entries and refreshing selected sources
-4. Restores missing historical Gemini entries and fields from `legacy_gemini_prices.json`
+4. Restores missing historical entries and fields from `legacy_model_prices.json`
 5. Auto-fills configured cache prices and applies custom model definitions
 6. Replaces complete entries listed in `price_overrides.json`
 7. Materializes upstream and configured aliases from their final source entries
@@ -48,11 +48,11 @@ Vertex AI source. The pinned values are absolute, so a future upstream change
 from promotional to standard rates will not double them; update the configuration
 if Google changes the standard prices.
 
-`legacy_gemini_prices.json` contains historical entries from this repository's
-pre-rebase catalog that LiteLLM no longer supplies. These models are marked
-deprecated in those records. Fallback data fills missing models or fields only;
-current catalog values are not overwritten. Historical prices do not establish
-that a retired model is still offered.
+`legacy_model_prices.json` contains historical entries from this repository's
+pre-rebase catalog that LiteLLM no longer supplies. These records carry historical
+or scheduled deprecation dates. Fallback data fills missing models or fields
+only; current catalog values are not overwritten. Historical prices do not
+establish that a retired model is still offered.
 
 ## Site-managed price cards
 
