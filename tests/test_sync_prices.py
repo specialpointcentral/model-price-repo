@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -147,7 +148,7 @@ class PriceOverridesTest(unittest.TestCase):
         overrides = sync_prices.load_price_overrides(
             str(ROOT / "price_overrides.json")
         )
-        for model in ("gpt-6-astra", "gpt-6.1-sol"):
+        for model in ("gpt-6-astra", "gpt-6.1-sol", "gpt-6.2-sol", "gpt-6.2-astra"):
             self.assertIn(model, overrides)
             prices = overrides[model]
             for field in (
@@ -185,6 +186,8 @@ class PriceOverridesTest(unittest.TestCase):
             "gpt-6.1-terra": (1.25e-6, 7.5e-6, 1.5625e-6, 6.25e-8),
             "gpt-6-luna": (1.25e-7, 7.5e-7, 0, 1.25e-8),
             "gpt-6-astra": (1.25e-5, 7.5e-5, 0, 1.25e-6),
+            "gpt-6.2-sol": (2.5e-6, 1.5e-5, 3.125e-6, 1.25e-7),
+            "gpt-6.2-astra": (1e-5, 6e-5, 1.25e-5, 5e-7),
         }
         fields = (
             "input_cost_per_token",
@@ -213,7 +216,10 @@ class PriceOverridesTest(unittest.TestCase):
                                 delta=1e-18,
                             )
 
-        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra"):
+        for model in (
+            "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra",
+            "gpt-6-astra", "gpt-6.2-sol", "gpt-6.2-astra",
+        ):
             for field in fields:
                 base = catalog[model][field]
                 long_multiplier = (
@@ -244,6 +250,114 @@ class PriceOverridesTest(unittest.TestCase):
 
         self.assertEqual(overrides["gpt-5.6-luna"], catalog["codex-auto-review"])
         self.assertEqual(hashlib.sha256(catalog_bytes).hexdigest(), stored_hash)
+
+    def test_gpt62_credit_prices_survive_repeated_upstream_sync(self):
+        # USD per million tokens, independently calculated from the supplied
+        # credit card and the $5 / $0.50 / $30 GPT-5.6 Sol baseline.
+        # Each tuple is input / cached input / output.
+        expected = {
+            "gpt-6.2-sol": {
+                "": (2.5, 0.125, 15),
+                "_priority": (6.25, 0.3125, 37.5),
+                "_ultrafast": (20, 1, 120),
+                "_batches": (1.25, 0.0625, 7.5),
+                "_above_272k_tokens": (5, 0.25, 22.5),
+                "_above_272k_tokens_priority": (12.5, 0.625, 56.25),
+                "_above_272k_tokens_ultrafast": (40, 2, 180),
+                "_above_272k_tokens_batches": (2.5, 0.125, 11.25),
+            },
+            "gpt-6.2-astra": {
+                "": (10, 0.5, 60),
+                "_priority": (25, 1.25, 150),
+                "_ultrafast": (80, 4, 480),
+                "_batches": (5, 0.25, 30),
+                "_above_272k_tokens": (20, 1, 90),
+                "_above_272k_tokens_priority": (50, 2.5, 225),
+                "_above_272k_tokens_ultrafast": (160, 8, 720),
+                "_above_272k_tokens_batches": (10, 0.5, 45),
+            },
+        }
+        # GPT-6.2 cache writes follow input pricing: 1.25x upstream Standard,
+        # then Fast 2.5x / Ultrafast 8x, long context 2x and retention 2x.
+        # These are Sol's literal USD/1M rates; Astra's are exactly 4x.
+        cache_writes = {
+            "": 3.125,
+            "_batches": 1.5625,
+            "_priority": 7.8125,
+            "_ultrafast": 25,
+            "_above_272k_tokens": 6.25,
+            "_above_272k_tokens_batches": 3.125,
+            "_above_272k_tokens_priority": 15.625,
+            "_above_272k_tokens_ultrafast": 50,
+            "_above_12hr": 6.25,
+            "_above_12hr_batches": 3.125,
+            "_above_12hr_priority": 15.625,
+            "_above_12hr_ultrafast": 50,
+            "_above_12hr_above_272k_tokens": 12.5,
+            "_above_12hr_above_272k_tokens_batches": 6.25,
+            "_above_12hr_above_272k_tokens_priority": 31.25,
+            "_above_12hr_above_272k_tokens_ultrafast": 100,
+        }
+        overrides = sync_prices.load_price_overrides(str(ROOT / "price_overrides.json"))
+        for model in expected:
+            self.assertIn(model, overrides.keys())
+        # Poison upstream prices and add an unseen tier: complete managed
+        # replacement must prevent either from leaking into the final cards.
+        upstream = {model: copy.deepcopy(overrides[model]) for model in expected}
+        for card in upstream.values():
+            for field in card:
+                if "cost" in field and "token" in field:
+                    card[field] = 0.001
+            card["input_cost_per_token_future"] = 0.001
+        config = {
+            "upstream_url": "https://example.invalid/prices.json",
+            "output_file": "catalog.json",
+            "hash_file": "catalog.sha256",
+            "sync_mode": "additive",
+            "update_existing": False,
+            "prefix_filters": ["gpt-"],
+        }
+        fields = ("input_cost_per_token", "cache_read_input_token_cost", "output_cost_per_token")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config_path = self.write_json(root, "config.json", config)
+            self.write_json(root, "price_overrides.json", overrides)
+            argv = ["sync_prices.py", "--config", config_path.name, "--repo-root", str(root)]
+            first_catalog = None
+            for run in range(2):
+                output = io.StringIO()
+                with mock.patch.object(sync_prices, "fetch_upstream", return_value=upstream):
+                    with mock.patch.object(sys, "argv", argv):
+                        with contextlib.redirect_stdout(output):
+                            sync_prices.main()
+                catalog_bytes = (root / "catalog.json").read_bytes()
+                catalog = json.loads(catalog_bytes)
+                for model, tiers in expected.items():
+                    self.assertEqual(overrides[model], catalog[model])
+                    self.assertNotIn("input_cost_per_token_future", catalog[model])
+                    cache_factor = 4 if model == "gpt-6.2-astra" else 1
+                    self.assertEqual(
+                        {
+                            "cache_creation_input_token_cost" + suffix: value * cache_factor / 1e6
+                            for suffix, value in cache_writes.items()
+                        },
+                        {
+                            key: value for key, value in catalog[model].items()
+                            if key.startswith("cache_creation_input_token_cost")
+                        },
+                    )
+                    for suffix, values in tiers.items():
+                        for field, value in zip(fields, values):
+                            with self.subTest(run=run, model=model, field=field, suffix=suffix):
+                                self.assertAlmostEqual(
+                                    value / 1e6, catalog[model][field + suffix], delta=1e-18,
+                                )
+                if run == 0:
+                    first_catalog = catalog_bytes
+                    self.assertIn("CHANGED=true", output.getvalue())
+                else:
+                    self.assertEqual(first_catalog, catalog_bytes)
+                    self.assertIn("CHANGED=false", output.getvalue())
 
     def test_gpt61_cache_write_prices_cover_all_supported_tiers(self):
         catalog = json.loads((ROOT / "model_prices_and_context_window.json").read_text())

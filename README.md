@@ -71,6 +71,8 @@ The managed set is:
 - `gpt-6.1-sol`
 - `gpt-6.1-terra`
 - `gpt-6-astra`
+- `gpt-6.2-sol`
+- `gpt-6.2-astra`
 
 Aliases are generated after managed replacements. In particular,
 `codex-auto-review` always copies the final managed `gpt-5.6-luna` entry.
@@ -82,42 +84,54 @@ token-limit fields. A managed key must not also exist in
 
 ## GPT-6 site pricing policy
 
-The five GPT-6 / GPT-6.1 managed cards use the Standard token credit ratios in
-[ChatGPT pricing](https://learn.chatgpt.com/docs/pricing), applied separately to
-the unchanged `gpt-5.6-sol` catalog rates: $5 input, $0.50 cached input and $30
+The seven GPT-6 / GPT-6.1 / GPT-6.2 managed cards use the approved Standard token
+credit ratios, applied separately to the unchanged `gpt-5.6-sol` catalog rates:
+$5 input, $0.50 cached input and $30
 output per million tokens. These are site-specific billing prices, not official
 OpenAI API USD prices or a uniform credits-to-USD conversion.
 
 | Model | Input / 1M | Cached input / 1M | Output / 1M |
 | --- | ---: | ---: | ---: |
 | `gpt-6-astra` | $12.50 | $1.25 | $75 |
+| `gpt-6.2-astra` | $10 | $0.50 | $60 |
+| `gpt-6.2-sol` | $2.50 | $0.125 | $15 |
 | `gpt-6.1-sol` | $2.50 | $0.125 | $15 |
 | `gpt-6.1-terra` | $1.25 | $0.0625 | $7.50 |
 | `gpt-6-sol` | $2.50 | $0.25 | $15 |
 | `gpt-6-luna` | $0.125 | $0.0125 | $0.75 |
 
-- **Fast:** `_priority` prices are **2.5x** the corresponding Standard prices,
-  following included subscription usage. Do not substitute the purchased-credit
-  / Enterprise pay-as-you-go multiplier of 2x.
-- **Ultrafast:** `_ultrafast` prices are **8x** Standard for `gpt-6-astra` and
-  `gpt-6.1-sol`, where supported, following included subscription usage. The
-  purchased-credit multiplier is 6x. See [Speed](https://learn.chatgpt.com/docs/agent-configuration/speed).
+For GPT-6.2, the user-approved credit card is 50 / 2.5 / 250 credits for Sol,
+200 / 10 / 1,000 for Astra, and 100 / 10 / 500 for the GPT-5.6 Sol baseline
+(input / cached input / output per million tokens). Calculate each category
+independently: `site price = GPT-5.6 Sol category price * model credits / baseline credits`.
+For example, Astra output is `$30 * 1,000 / 500 = $60`, and Sol cached input
+is `$0.50 * 2.5 / 10 = $0.125`.
+
+- **Fast:** `_priority` input, cached-input and output prices are **2.5x** the
+  corresponding Standard prices under the approved site policy.
+  The same multiplier applies to GPT-6.1 and GPT-6.2 cache writes.
+- **Ultrafast:** `_ultrafast` input, cached-input and output prices are **8x**
+  Standard for `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.2-sol` and `gpt-6.2-astra`.
+  The GPT-6.2 managed cards replace upstream's 2x Fast / 3x Ultrafast prices
+  with the approved 2.5x / 8x site policy, including cache-write prices.
 - **Long context:** retain the existing site policy above 272,000 input tokens.
-  `gpt-6-sol`, `gpt-6.1-sol`, `gpt-6.1-terra` and `gpt-6-luna` use 2x input / cached-input prices
-  and 1.5x output prices. Astra has no long-context surcharge. Apply the speed
-  multiplier to the matching long-context prices as well. The cited ChatGPT
-  pricing page does **not** specify a separate long-context credit rate; these
-  multipliers are retained site policy, not a newly verified official credit rule.
+  `gpt-6-sol`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`, `gpt-6.2-sol` and
+  `gpt-6.2-astra` use 2x input / cached-input prices and 1.5x output prices.
+  The older `gpt-6-astra` has no long-context surcharge; `gpt-6.2-astra` does.
+  Apply the speed multiplier to the matching long-context prices as well.
+  These multipliers are approved site policy.
 - **Cache writes:** GPT-6 Astra, GPT-6 Sol and GPT-6 Luna have zero separate
-  cache-write surcharge. GPT-6.1 Sol and Terra scale upstream cache writes by the
-  input-price adjustment of 1.25x. Standard prices per million tokens are
-  $3.125 for Sol and $1.5625 for Terra.
-  Apply Fast 2.5x, Ultrafast 8x for Sol, Flex or Batch 0.5x, long context 2x
-  and above-12hr retention 2x where supported.
+  cache-write surcharge. GPT-6.1 Sol and Terra and GPT-6.2 Sol and Astra use
+  the same 1.25x Standard price adjustment as uncached input, based on upstream
+  `512c355`. Standard cache writes cost $3.125 for either Sol, $1.5625 for
+  GPT-6.1 Terra, and $12.50 for GPT-6.2 Astra per million tokens. Apply Fast
+  2.5x, Ultrafast 8x, Flex or Batch 0.5x, long context 2x and above-12hr
+  retention 2x to the tiers each model supports. GPT-6.1 Sol has 20 cache-write
+  fields and GPT-6.1 Terra has 16. Terra has no Ultrafast tier.
 - Existing Flex / Batch discounts remain 0.5x the corresponding Standard tier
-  as a site policy; the credit page does not establish those discounts.
-- `gpt-6.1-sol` and `gpt-6.1-terra` are complete managed replacements, so additive upstream syncs
-  cannot restore stale or mixed-tier pricing.
+  under the site policy, where those tier fields are present. GPT-6.2 has no Flex fields.
+- `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6.2-sol` and `gpt-6.2-astra` are complete
+  managed replacements, so additive upstream syncs cannot restore stale or mixed-tier pricing.
 
 ## Configuration
 
